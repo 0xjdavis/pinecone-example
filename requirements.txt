@@ -1,1 +1,5 @@
 streamlit
+pinecone-client
+pinecone-client[grpc]
+PyPDF2
+sentence-transformers
