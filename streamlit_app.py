@@ -47,6 +47,7 @@ class MyWorkflow(Workflow):
         return StopEvent(result="Hello, world!")
 
 URL = Path("workflow.html")
+
 async def workflow():
     w = MyWorkflow(timeout=10, verbose=False)
     result = await w.run()
@@ -83,7 +84,6 @@ if not api_key:
     st.stop()
 
 pc = Pinecone(api_key=api_key)
-
 
 # Streamlit app title
 st.title("RAG with Citations using LlamaIndex & Pinecone")
