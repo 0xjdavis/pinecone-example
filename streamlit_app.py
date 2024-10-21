@@ -208,9 +208,9 @@ with st.sidebar.expander("Evironmental Variables", expanded=False, icon="🪝"):
 
 st.sidebar.write("Workflow Observability")
 st.sidebar.html('<a href="../src/workflow.html" target="_blank">Observe</a>')
-    # Load and display the HTML file
-    with open('workflow.html', 'r') as f:
-        html_content = f.read()
-    
-    components.html(html_content, height=600, scrolling=True)
+# Load and display the HTML file
+with open('workflow.html', 'r') as f:
+    html_content = f.read()
+
+components.html(html_content, height=600, scrolling=True)
 
