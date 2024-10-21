@@ -209,7 +209,7 @@ st.sidebar.write("Workflow Observability")
 with open('workflow.html', 'r') as f:
     html_content = f.read()
 
-with st.sidebar.info:
+with st.sidebar:
     draw_all_possible_flows(MyWorkflow, filename="workflow.html")
     components.html(html_content, height=400, scrolling=True)
 
