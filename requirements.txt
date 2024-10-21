@@ -1,5 +1,20 @@
 streamlit
-pinecone-client
-pinecone-client[grpc]
-PyPDF2
-sentence-transformers
+asyncio
+pathlib
+PyMuPDF
+python-dotenv
+ipython
+# AI STACK
+llama_index
+llama_index.core
+# STORAGE
+llama_index.vector_stores.pinecone
+# LLM
+llama_index.llms.anthropic
+llama_index.llms.openai
+# EMBEDDINGS
+#llama_index.embeddings.huggingface
+llama_index.embeddings.openai
+#llama_index.embeddings.base
+# WORKFLOW
+llama-index-utils-workflow
