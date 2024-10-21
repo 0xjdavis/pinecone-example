@@ -61,7 +61,6 @@ if __name__ == "__workflow__":
 with open(URL, 'r') as f:
     html_content = f.read()
 
-draw_all_possible_flows(MyWorkflow, filename="workflow.html")
  
 # Load environment variables
 #load_dotenv()
@@ -211,5 +210,6 @@ with open('workflow.html', 'r') as f:
     html_content = f.read()
 
 with st.sidebar:
+    draw_all_possible_flows(MyWorkflow, filename="workflow.html"
     components.html(html_content, height=200, scrolling=True)
 
