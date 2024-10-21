@@ -211,5 +211,5 @@ with open('workflow.html', 'r') as f:
 
 with st.sidebar:
     draw_all_possible_flows(MyWorkflow, filename="workflow.html")
-    components.html(html_content, height="auto", scrolling=True)
+    components.html(html_content, height=500, scrolling=True)
 
