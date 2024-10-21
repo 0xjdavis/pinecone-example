@@ -210,6 +210,7 @@ with open('workflow.html', 'r') as f:
     html_content = f.read()
 
 with st.sidebar:
+    st.html("<a href='/pages/workflow.html' target='_blank'>View in new tab</a>")
     draw_all_possible_flows(MyWorkflow, filename="workflow.html")
     components.html(html_content, height=500, scrolling=True)
 
