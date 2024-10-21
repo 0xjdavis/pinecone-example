@@ -1,132 +1,217 @@
 import streamlit as st
-from pinecone import Pinecone, PodSpec
-from PyPDF2 import PdfReader
-from sentence_transformers import SentenceTransformer
-import requests
 
-# Pinecone setup
-pc = Pinecone(api_key=st.secrets["PINECONE_API_KEY"])
-index_name = "pdf-store"
+import os
+from pathlib import Path
 
-# Create index if it doesn't exist
-if index_name not in pc.list_indexes().names():
-    pc.create_index(
-        name=index_name,
-        dimension=384,  # Dimension for 'all-MiniLM-L6-v2' model
-        metric='cosine',
-        spec=PodSpec(environment="gcp-starter")  # Use PodSpec for the environment
+# DISPLAY IMAGES AND PDF
+import fitz  # PyMuPDF
+from PIL import Image
+import io
+#from dotenv import load_dotenv
+
+# PINECONE
+from pinecone import Pinecone, ServerlessSpec
+
+# LLAMAINDEX STORAGE USING PINECONE
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader #, ServiceContext
+from llama_index.vector_stores.pinecone import PineconeVectorStore
+from llama_index.core import StorageContext
+
+# LLM & Embeddings
+from llama_index.llms.openai import OpenAI
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core import Settings
+
+# MARKDOWN
+from IPython.display import Markdown, display
+
+# WORKFLOW
+from llama_index.core.workflow import (
+    StartEvent,
+    StopEvent,
+    Workflow,
+    step,
+)
+
+# WORKFLOW OBSERVABILITY
+from llama_index.utils.workflow import draw_all_possible_flows
+
+# COMPONENT - VIEWING HTML FOR WORKFLOW MONITOR
+import streamlit.components.v1 as components
+
+class MyWorkflow(Workflow):
+    @step
+    async def my_step(self, ev: StartEvent) -> StopEvent:
+        # do something here
+        return StopEvent(result="Hello, world!")
+
+URL = Path("workflow.html")
+async def workflow():
+    w = MyWorkflow(timeout=10, verbose=False)
+    result = await w.run()
+    st.write(result)
+
+if __name__ == "__workflow__":
+    import asyncio
+
+    asyncio.run(main())
+    
+# Load and display the HTML file
+with open(URL, 'r') as f:
+    html_content = f.read()
+
+draw_all_possible_flows(MyWorkflow, filename="workflow.html")
+
+components.html(html_content, height=600, scrolling=True)
+    
+# Load environment variables
+#load_dotenv()
+
+# OpenAI API
+#api_key = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY=st.secrets["OPENAI_API_KEY"] 
+
+# Initialize Pinecone
+PINECONE_API_KEY=st.secrets["PINECONE_API_KEY"]
+
+#api_key = os.getenv("PINECONE_API_KEY")
+api_key = PINECONE_API_KEY
+index_name = "llamaindex-docs"
+
+# Pinecone Init
+if not api_key:
+    st.error("Pinecone API key is not set. Please check your .env file.")
+    st.stop()
+
+pc = Pinecone(api_key=api_key)
+
+
+# Streamlit app title
+st.title("RAG with Citations using LlamaIndex & Pinecone")
+
+# Function to load and index documents
+@st.cache_resource
+def load_and_index_documents():
+    # Load documents from a directory
+    documents = SimpleDirectoryReader("data").load_data()
+    
+    # Initialize Pinecone vector store
+    if index_name not in pc.list_indexes().names():
+        pc.create_index(
+            name=index_name,
+            dimension=1536,
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
+        )
+    
+    pinecone_index = pc.Index(index_name)
+    vector_store = PineconeVectorStore(pinecone_index=pinecone_index)
+    
+    # Create a storage context
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+    # LLM & EMBED SETTINGS with OPENAI
+    Settings.llm = OpenAI(model="gpt-3.5-turbo")
+    Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
+    Settings.node_parser = SentenceSplitter(chunk_size=512, chunk_overlap=20)
+    Settings.num_output = 512
+    Settings.context_window = 3900
+
+    # Create and return the index
+    return VectorStoreIndex.from_documents(
+        documents, 
+        storage_context=storage_context,
+        #service_context=service_context
     )
 
-# Connect to the index
-index = pc.Index(index_name)
+# Load and index documents
+with st.spinner("Loading and indexing documents... This may take a while."):
+    try:
+        index = load_and_index_documents()
+    except Exception as e:
+        st.error(f"An error occurred while loading and indexing documents: {str(e)}")
+        st.stop()
 
-# Load the sentence transformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Function to query the index and get response with citations
+def query_index(query_text):
+    query_engine = index.as_query_engine(
+        response_mode="tree_summarize",
+        verbose=True,
+        use_async=True
+    )
+    response = query_engine.query(query_text)
+    return response
 
-GITHUB_API_URL = st.secrets["GITHUB_API_URL"]
+# Streamlit UI
+query = st.text_input("Enter your question:")
 
-def get_pdf_urls_from_github_directory():
-    response = requests.get(GITHUB_API_URL)
-    if response.status_code == 200:
-        files = response.json()
-        pdf_urls = [file['download_url'] for file in files if file['name'].endswith('.pdf')]
-        return pdf_urls
-    else:
-        st.error(f"Failed to retrieve files from GitHub. Status code: {response.status_code}")
-        return []
+if query:
+    with st.spinner("Generating response..."):
+        try:
+            response = query_index(query)
+            
+            st.subheader("Answer:")
+            st.write(response.response)
+            
+            st.subheader("Sources:")
+            for source_node in response.source_nodes:
+                st.markdown(f"- [{source_node.node.metadata['file_name']}]({source_node.node.metadata['file_path']}) (Score: {source_node.score:.2f})")
+                with st.expander("View source text"):
+                    st.write(source_node.node.get_content())
+                    
+                    file_name = source_node.node.metadata['file_name'].lower()
+                    file_path = source_node.node.metadata['file_path']
+                    
+                    if file_name.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+                        st.image(file_path, caption=file_name)
+                    elif file_name.endswith('.pdf'):
+                        try:
+                            doc = fitz.open(file_path)
+                            for page in doc:
+                                pix = page.get_pixmap()
+                                img = Image.open(io.BytesIO(pix.tobytes()))
+                                st.image(img, caption=f"{file_name} - Page {page.number + 1}")
+                        except Exception as e:
+                            st.error(f"Error displaying PDF: {str(e)}")
 
-def download_pdf_from_github(url):
-    response = requests.get(url)
-    pdf_filename = url.split("/")[-1]  # Extract the PDF name from the URL
-    with open(pdf_filename, "wb") as f:
-        f.write(response.content)
-    return pdf_filename
+        except Exception as e:
+            st.error(f"An error occurred while processing your query: {str(e)}")
 
-def extract_text_from_pdf(pdf_file_path):
-    with open(pdf_file_path, 'rb') as pdf_file:
-        reader = PdfReader(pdf_file)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
-    return text
-
-def create_embeddings(text):
-    return model.encode(text)
-
-# Get all PDF URLs from the GitHub directory
-pdf_urls = get_pdf_urls_from_github_directory()
-
-# Download and process each PDF from the list
-for pdf_url in pdf_urls:
-    st.write(f"Processing PDF: {pdf_url.split('/')[-1]}")
+with st.sidebar.expander("How to use this app", expanded=False, icon="📖"):
+    st.markdown("""
+    1. Make sure you have documents in the 'data' directory.
+    2. Enter your question in the text input.
+    3. The app will generate a response using LlamaIndex and display it along with the sources.
+    4. Click on the source links to view the original documents.
+    5. Expand the "View source text" to see the relevant text from each source.
+    """)
     
-    pdf_file_path = download_pdf_from_github(pdf_url)
-    pdf_text = extract_text_from_pdf(pdf_file_path)
-    embedding = create_embeddings(pdf_text)
+with st.sidebar.expander("Evironmental Variables", expanded=False, icon="🪝"):
+    st.markdown("""
+    Note: This app requires setting up environment variables for Pinecone and OpenAI API keys.
     
-    # You can store the embedding to Pinecone or any other database
-    st.write(f"Processed and created embedding for: {pdf_file_path}")
+    Required Environment Variables:
+    - PINECONE_API_KEY
+    - OPENAI_API_KEY
+    """)
+    
+    # Display environment variable status
+    st.subheader("Environment Variables Status:")
+    env_vars = ["PINECONE_API_KEY", "OPENAI_API_KEY"] # "PINECONE_ENVIRONMENT",
+    
+    for var in env_vars:
+        if os.getenv(var):
+            st.success(f"{var}: Set")
+        else:
+            st.error(f"{var}: Not Set")
 
-st.write("All PDFs downloaded and processed successfully!")
+st.sidebar.write("Workflow Observability")
+st.sidebar.html('<a href="../src/workflow.html" target="_blank">Observe</a>')
 
+# Load and display the HTML file
+with open('workflow.html', 'r') as f:
+    html_content = f.read()
 
+components.html(html_content, height=600, scrolling=True)
 
-
-
-
-
-
-
-
-
-
-def extract_text_from_pdf(pdf_file):
-    reader = PdfReader(pdf_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
-
-def create_embeddings(text):
-    return model.encode(text)
-
-def store_in_pinecone(pdf_name, embedding):
-    index.upsert(vectors=[(pdf_name, embedding.tolist())])
-
-def retrieve_from_pinecone(query):
-    query_embedding = model.encode(query).tolist()
-    results = index.query(vector=query_embedding, top_k=5, include_metadata=True)
-    return results
-
-st.title("PDF Storage and Retrieval with Pinecone")
-
-# PDF upload
-uploaded_file = st.file_uploader("Choose a PDF file", type="pdf")
-if uploaded_file is not None:
-    pdf_text = extract_text_from_pdf(uploaded_file)
-    embedding = create_embeddings(pdf_text)
-    store_in_pinecone(uploaded_file.name, embedding)
-    st.success(f"PDF '{uploaded_file.name}' stored successfully!")
-
-# Query interface
-# st.header("Retrieve PDFs")
-# query = st.text_input("Enter your query:")
-# if query:
-#    results = retrieve_from_pinecone(query)
-#    st.subheader("Retrieved PDFs:")
-#    for match in results['matches']:
-#        st.write(f"- {match['id']} (Score: {match['score']})")
-
-# RAG implementation
-st.header("RAG")
-rag_query = st.text_input("Enter your query:")
-if rag_query:
-    results = retrieve_from_pinecone(rag_query)
-    context = "\n".join([match['id'] for match in results['matches']])
-
-    # Generate response using an LLM (mock implementation)
-    response = model.encode(f"Response based on context: {context}")
-    st.caption("Generated Response:")
-    st.write(response)
-    st.caption("Context")
-    st.write(context)
