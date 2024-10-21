@@ -212,5 +212,6 @@ st.sidebar.write("Workflow Observability")
 with open('workflow.html', 'r') as f:
     html_content = f.read()
 
-st.sidebar.components.html(html_content, height=600, scrolling=True)
+with st.sidebar:
+    components.html(html_content, height=600, scrolling=True)
 
