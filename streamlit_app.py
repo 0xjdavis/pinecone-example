@@ -13,7 +13,7 @@ import io
 from pinecone import Pinecone, ServerlessSpec
 
 # LLAMAINDEX STORAGE USING PINECONE
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader #, ServiceContext
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.vector_stores.pinecone import PineconeVectorStore
 from llama_index.core import StorageContext
 
@@ -72,10 +72,11 @@ OPENAI_API_KEY=st.secrets["OPENAI_API_KEY"]
 
 # Initialize Pinecone
 PINECONE_API_KEY=st.secrets["PINECONE_API_KEY"]
+PINECONE_INDEX=st.secrets["PINECONE_INDEX"]
 
 #api_key = os.getenv("PINECONE_API_KEY")
 api_key = PINECONE_API_KEY
-index_name = "llamaindex-docs"
+index_name = PINECONE_INDEX 
 
 # Pinecone Init
 if not api_key:
