@@ -62,9 +62,7 @@ with open(URL, 'r') as f:
     html_content = f.read()
 
 draw_all_possible_flows(MyWorkflow, filename="workflow.html")
-
-components.html(html_content, height=600, scrolling=True)
-    
+ 
 # Load environment variables
 #load_dotenv()
 
@@ -207,11 +205,10 @@ with st.sidebar.expander("Evironmental Variables", expanded=False, icon="🪝"):
             st.error(f"{var}: Not Set")
 
 st.sidebar.write("Workflow Observability")
-#st.sidebar.html('<a href="../src/workflow.html" target="_blank">Observe</a>')
 # Load and display the HTML file
 with open('workflow.html', 'r') as f:
     html_content = f.read()
 
 with st.sidebar:
-    components.html(html_content, height=600, scrolling=True)
+    components.html(html_content, height=200, scrolling=True)
 
