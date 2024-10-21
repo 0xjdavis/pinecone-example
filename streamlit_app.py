@@ -210,6 +210,6 @@ with open('workflow.html', 'r') as f:
     html_content = f.read()
 
 with st.sidebar:
-    draw_all_possible_flows(MyWorkflow, filename="workflow.html"
+    draw_all_possible_flows(workflow, filename="workflow.html"
     components.html(html_content, height=200, scrolling=True)
 
